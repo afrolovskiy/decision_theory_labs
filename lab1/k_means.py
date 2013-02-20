@@ -22,31 +22,10 @@ class Cluster:
 
 def k_means(datas, cluster_count):
 	clusters = initialize_clusters(datas, cluster_count)
-	print "initialized clusters:"
-	num = 0
-	for cluster in clusters: 
-		print "center:", cluster.center
-		print "elements:", cluster.elements
-		num += 1
-
 	new_clusters = rebuild_clusters(clusters, datas)
-	print "new_clusters:"
-	num = 0
-	for cluster in new_clusters: 
-		print "center:", cluster.center
-		print "elements:", cluster.elements
-		num += 1
-
 	while clusters != new_clusters:
 		clusters = new_clusters
 		new_clusters = rebuild_clusters(clusters, datas)
-		print "new_clusters:"
-		num = 0
-		for cluster in new_clusters: 
-			print "center:", cluster.center
-			print "elements:", cluster.elements
-			num += 1
-
 	return clusters
 
 
@@ -65,10 +44,8 @@ def initialize_clusters(datas, cluster_count):
 	centers = get_random_cluster_centers(datas, cluster_count)
 	clusters = [Cluster(center=center, elements=[center]) for center in centers]
 	for data in datas:
-		print "data:", data
 		if data not in centers:
 			idx = find_nearest_cluster(data, clusters)
-			print "idx:", idx
 			if data not in clusters[idx].elements:
 				clusters[idx].elements.append(data)
 	return clusters
@@ -95,7 +72,6 @@ def find_nearest_cluster(data, clusters):
 	min_idx = 0
 	for idx in range(len(clusters)):
 		dist = get_dist(clusters[idx].center, data)
-		print "idx:", idx, " dist:", dist
 		if dist < min_dist:
 			min_dist = dist
 			min_idx = idx
@@ -111,37 +87,21 @@ def rebuild_clusters(clusters, datas):
 
 	def calc_center_cluster(cluster):
 		center = [0, ] * len(cluster.center)
-		print "center:", center
 		for element in cluster.elements:
 			center = _sum(center, element)
-			print "element:", element
-			print "center:", center
-
 		for idx in range(len(center)):
 			center[idx] = center[idx] / float(len(cluster.center))
-			print "center:", center
-		print "center:", center
 		return tuple(center)
 
 	def _sum(vector1, vector2):
-		print "vector1:", vector1
-		print "vector2:", vector2
 		result = [0, ] * len(vector1)
 		for idx in range(len(vector1)):
 			result[idx] = vector1[idx] + vector2[idx]
 		return result
 		
 	new_clusters = calc_center_clusters(clusters)
-	print "new_clusters after calc centers:"
-	num = 0
-	for cluster in new_clusters: 
-		print "center:", cluster.center
-		print "elements:", cluster.elements
-		num += 1
-	
 	for data in datas:
 		idx = find_nearest_cluster(data, new_clusters)
-		print "idx:", idx, " data:", data
 		if data not in new_clusters[idx].elements:
 			new_clusters[idx].elements.append(data)
 	return new_clusters

@@ -13,7 +13,7 @@ class Ship(object):
 
 class Pirate(Ship):
     COLOR = (0, 0, 0)
-    SPEED = 32.0
+    SPEED = 40.0
 
     def __init__(self, point, direction, width=10, height=10):
         self.point = point
@@ -28,7 +28,7 @@ class Pirate(Ship):
 
 class Police(Ship):
     COLOR = (0, 0, 255)
-    SPEED = 35.0
+    SPEED = 50.0
 
     def __init__(self, point, direction, radius=8):
         self.point = point
@@ -41,7 +41,7 @@ class Police(Ship):
 
 class Tourist(Ship):
     COLOR = (0, 255, 0)
-    SPEED = 28.0
+    SPEED = 47.0
 
     def __init__(self, point, end_point, direction, edge=8):
         self.point = point
@@ -66,12 +66,12 @@ class Simulator(object):
     POLICE_TURN_PROBABILITY = 0.04
     PIRATE_TURN_PROBABILITY = 0.04
     TIMEOUT = 40  # 1000 / 25
-    POLICES_COUNT = 4
-    MAX_PIRATES_COUNT  = 5
+    POLICES_COUNT = 5
+    MAX_PIRATES_COUNT  = 20
     MAX_TOURISTS_COUNT = 20
-    PIRATE_OBSERVATION_AREA = 50
-    POLICE_OBSERVATION_AREA = 50
-    TOURIST_OBSERVATION_AREA = 50
+    PIRATE_OBSERVATION_AREA = 100
+    POLICE_OBSERVATION_AREA = 200
+    TOURIST_OBSERVATION_AREA = 100
     
     
     def __init__(self):
@@ -120,16 +120,16 @@ class Simulator(object):
     def kill_pirates(self, police):
         killed_pirates = []
         for pirate in self.pirates:
-            if self.calc_distance(pirate.point, police.point) < 10.0:
+            if self.calc_distance(pirate.point, police.point) < 4.0:
                 killed_pirates.append(pirate)
         for pirate in killed_pirates:
             self.pirates.remove(pirate)        
 
     def refresh_police(self, police):
-        pirates = self.get_nearest_pirates(police)
+        pirates = self.get_nearest_objects(police, self.pirates, self.POLICE_OBSERVATION_AREA)
         if pirates:
             # есть пираты. надо прикрыть их лавочку
-            distance, pirate = self.get_most_nearest_pirate(police)
+            distance, pirate = self.get_most_nearest_object(pirates)
             police.direction = (
                     (pirate.point[0] - police.point[0]) / distance,
                     (pirate.point[1] - police.point[1]) / distance,  
@@ -164,7 +164,7 @@ class Simulator(object):
     def kill_tourists(self, pirate):
         removed_tourists = []
         for tourist in self.tourists:
-            if self.calc_distance(pirate.point, tourist.point) < 10.0:
+            if self.calc_distance(pirate.point, tourist.point) < 4.0:
                 removed_tourists.append(tourist)
         for tourist in removed_tourists:
             self.tourists.remove(tourist)
@@ -183,20 +183,20 @@ class Simulator(object):
         self.pirates.append(pirate)
 
     def refresh_pirate(self, pirate):
-        polices = self.get_nearest_polices(pirate)
+        polices = self.get_nearest_objects(pirate, self.polices, self.PIRATE_OBSERVATION_AREA)
         if polices:
             # надо убегать, т.к. по длизости есть полицейские
-            distance, police = self.get_most_nearest_police(pirate)
+            distance, police = self.get_most_nearest_object(polices)
             pirate.direction = (
                 (pirate.point[0] - police.point[0]) / distance,
                 (pirate.point[1] - police.point[1]) / distance,  
             )
             pirate.point = self.calc_new_position(pirate.point, pirate.direction, pirate.SPEED)
         else:
-            # попробуем напасть
-            tourists = self.get_nearest_tourists(pirate)
+            # попробуем напасть на путешественника
+            tourists = self.get_nearest_objects(pirate, self.tourists, self.PIRATE_OBSERVATION_AREA)
             if tourists:
-                distance, tourist = self.get_most_nearest_tourist(tourists)
+                distance, tourist = self.get_most_nearest_object(tourists)
                 pirate.direction = (
                     (tourist.point[0] - pirate.point[0]) / distance,
                     (tourist.point[1] - pirate.point[1]) / distance,  
@@ -240,13 +240,13 @@ class Simulator(object):
         self.tourists.append(pirate)
 
     def refresh_tourist(self, tourist):
-        pirates = self.get_nearest_pirates(tourist)
+        pirates = self.get_nearest_objects(tourist, self.pirates, self.TOURIST_OBSERVATION_AREA)
         if pirates:
             # пытаемся уплыть от пиратов
-            distance, police = self.get_most_nearest_police(pirates)
+            distance, pirate = self.get_most_nearest_object(pirates)
             tourist.direction = (
-                (tourist.point[0] - police.point[0]) / distance,
-                (tourist.point[1] - police.point[1]) / distance,  
+                (tourist.point[0] - pirate.point[0]) / distance,
+                (tourist.point[1] - pirate.point[1]) / distance,  
             )
             tourist.point = self.calc_new_position(tourist.point, tourist.direction, tourist.SPEED)
         else:
@@ -258,35 +258,17 @@ class Simulator(object):
             )
             tourist.point = self.calc_new_position(tourist.point, tourist.direction, tourist.SPEED)
             
-    def get_nearest_polices(self, pirate):
-        return self.get_nearest_objects(pirate, self.polices)
-
-    def get_most_nearest_police(self, distancies):
-        return self.get_nearest_object(distancies)
-
-    def get_nearest_tourists(self, pirate):
-        return self.get_nearest_objects(pirate, self.tourists)
-
-    def get_most_nearest_tourist(self, distancies):
-        return self.get_nearest_object(distancies)
-
-    def get_nearest_pirates(self, police):
-        return self.get_nearest_objects(police, self.pirates)
-
-    def get_most_nearest_pirate(self, distancies):
-        return self.get_nearest_object(distancies)
-
-    def get_nearest_objects(self, obj, objs):
-        objs = []
+    def get_nearest_objects(self, obj, objs, area):
+        finded_objs = []
         for o in objs:
-            distance = self.calc_distance(obj, o)
-            if distance < self.PIRATE_OBSERVATION_AREA:
-        		objs.append((distance, o))
-        return objs
+            distance = self.calc_distance(obj.point, o.point)
+            if distance < area:
+        		finded_objs.append((distance, o))
+        return finded_objs
 
     def get_most_nearest_object(self, distancies):
-        min_distance = 10000
         obj = None
+        min_distance = 10000
         for distance in distancies:
             if distance[0] < min_distance:
                 min_distance = distance[0]

@@ -62,16 +62,16 @@ class Simulator(object):
     SCREEN_SIZE = (600, 700)
     SCREEN_COLOR = (0, 191, 255)
     PIRATE_PROBABILITY = 0.01
-    TOURIST_PROBABILITY = 0.2
+    TOURIST_PROBABILITY = 0.01
     POLICE_TURN_PROBABILITY = 0.04
     PIRATE_TURN_PROBABILITY = 0.04
     TIMEOUT = 40  # 1000 / 25
     POLICES_COUNT = 4
     MAX_PIRATES_COUNT  = 5
-    MAX_TOURISTS_COUNT = 6
-    PIRATE_OBSERVATION_AREA = 100
-    POLICE_OBSERVATION_AREA = 100
-    TOURIST_OBSERVATION_AREA = 100
+    MAX_TOURISTS_COUNT = 20
+    PIRATE_OBSERVATION_AREA = 50
+    POLICE_OBSERVATION_AREA = 50
+    TOURIST_OBSERVATION_AREA = 50
     
     
     def __init__(self):
@@ -109,18 +109,21 @@ class Simulator(object):
         self.refresh_pirates()
         self.refresh_tourists()
 
+    # обработка действий полиции
     def refresh_polices(self):
         for police in self.polices:
-            self.delete_targets(police)
-            self.refresh_police(police)
+            self.kill_pirates(police)
 
-    def delete_targets(self, police):
-        removed_targets = []
-        for target in self.pirates:
-            if self.calc_distance(target.point, police.point) < 1:
-                removed_targets.append(target)
-        for target in removed_targets:
-            self.pirates.remove(target)        
+        for police in self.polices:
+              self.refresh_police(police)
+
+    def kill_pirates(self, police):
+        killed_pirates = []
+        for pirate in self.pirates:
+            if self.calc_distance(pirate.point, police.point) < 10.0:
+                killed_pirates.append(pirate)
+        for pirate in killed_pirates:
+            self.pirates.remove(pirate)        
 
     def refresh_police(self, police):
         pirates = self.get_nearest_pirates(police)
@@ -131,6 +134,7 @@ class Simulator(object):
                     (pirate.point[0] - police.point[0]) / distance,
                     (pirate.point[1] - police.point[1]) / distance,  
             )
+            police.point = self.calc_new_position(police.point, police.direction, police.SPEED)
         else:
             # просто патрулируем
             turn = random.random() < self.POLICE_TURN_PROBABILITY
@@ -143,7 +147,11 @@ class Simulator(object):
                     break
                 police.direction = self.generate_direction()
 
+    # обработка действий пиратов
     def refresh_pirates(self):
+        for pirate in self.pirates:
+            self.kill_tourists(pirate)
+
         self.delete_pirates()
     
         if len(self.pirates) < self.MAX_PIRATES_COUNT and \
@@ -152,6 +160,14 @@ class Simulator(object):
 
         for pirate in self.pirates:
             self.refresh_pirate(pirate)
+
+    def kill_tourists(self, pirate):
+        removed_tourists = []
+        for tourist in self.tourists:
+            if self.calc_distance(pirate.point, tourist.point) < 10.0:
+                removed_tourists.append(tourist)
+        for tourist in removed_tourists:
+            self.tourists.remove(tourist)
 
     def delete_pirates(self):
         removed_pirates = []
@@ -170,11 +186,12 @@ class Simulator(object):
         polices = self.get_nearest_polices(pirate)
         if polices:
             # надо убегать, т.к. по длизости есть полицейские
-            distance, police = self.get_most_nearest_police(polices)
+            distance, police = self.get_most_nearest_police(pirate)
             pirate.direction = (
                 (pirate.point[0] - police.point[0]) / distance,
                 (pirate.point[1] - police.point[1]) / distance,  
             )
+            pirate.point = self.calc_new_position(pirate.point, pirate.direction, pirate.SPEED)
         else:
             # попробуем напасть
             tourists = self.get_nearest_tourists(pirate)
@@ -184,6 +201,7 @@ class Simulator(object):
                     (tourist.point[0] - pirate.point[0]) / distance,
                     (tourist.point[1] - pirate.point[1]) / distance,  
                 )
+                pirate.point = self.calc_new_position(pirate.point, pirate.direction, pirate.SPEED)
             else:
                 # плаваем и никого не трогаем
                 turn = random.random() < self.PIRATE_TURN_PROBABILITY
@@ -196,6 +214,7 @@ class Simulator(object):
                         break
                     pirate.direction = self.generate_direction()
 
+    # обработка действий обычных путешественников
     def refresh_tourists(self):
         self.delete_tourists()
 
@@ -209,9 +228,9 @@ class Simulator(object):
     def delete_tourists(self):
         removed_tourists = []
         for tourist in self.tourists:
-            if self.calc_distance(tourist.point, tourist.end_point) < 1:
-                removed_toursts.append(tourist)
-        for o in removed_tourists:
+            if self.calc_distance(tourist.point, tourist.end_point) < 4.0:
+                removed_tourists.append(tourist)
+        for tourist in removed_tourists:
             self.tourists.remove(tourist)
 
     def add_new_tourist(self):
@@ -223,11 +242,13 @@ class Simulator(object):
     def refresh_tourist(self, tourist):
         pirates = self.get_nearest_pirates(tourist)
         if pirates:
-            distance, pirate = self.get_most_nearest_police(pirates)
+            # пытаемся уплыть от пиратов
+            distance, police = self.get_most_nearest_police(pirates)
             tourist.direction = (
-                (tourist.point[0] - pirate.point[0]) / distance,
-                (tourist.point[1] - pirate.point[1]) / distance,  
+                (tourist.point[0] - police.point[0]) / distance,
+                (tourist.point[1] - police.point[1]) / distance,  
             )
+            tourist.point = self.calc_new_position(tourist.point, tourist.direction, tourist.SPEED)
         else:
             # посылаем в пункт назначения
             distance = self.calc_distance(tourist.end_point, tourist.point)
@@ -235,10 +256,8 @@ class Simulator(object):
                 (tourist.end_point[0] - tourist.point[0]) / distance,
                 (tourist.end_point[1] - tourist.point[1]) / distance,  
             )
+            tourist.point = self.calc_new_position(tourist.point, tourist.direction, tourist.SPEED)
             
-
-
-
     def get_nearest_polices(self, pirate):
         return self.get_nearest_objects(pirate, self.polices)
 
@@ -256,8 +275,6 @@ class Simulator(object):
 
     def get_most_nearest_pirate(self, distancies):
         return self.get_nearest_object(distancies)
-                
-
 
     def get_nearest_objects(self, obj, objs):
         objs = []
@@ -275,8 +292,6 @@ class Simulator(object):
                 min_distance = distance[0]
                 obj = distance[1]
         return min_distance, obj
-
-
 
     def calc_new_position(self, point, direction, speed):
         return (point[0] + direction[0]*speed/25, point[1] + direction[1]*speed/25)
@@ -297,6 +312,7 @@ class Simulator(object):
 
         for tourist in self.tourists:
             tourist.draw(self.screen)
+
 
 
 Simulator().run()
